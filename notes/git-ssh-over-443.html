@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Git over SSH on a restricted network — Kevin Lin</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #7c8cff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 32px 20px;
+      background: radial-gradient(1200px 600px at 50% -10%, #1b2350 0%, var(--bg) 60%);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.7;
+    }
+    main {
+      width: 100%;
+      max-width: 720px;
+      background: rgba(22, 27, 34, 0.85);
+      border: 1px solid #21262d;
+      border-radius: 16px;
+      padding: 40px 36px;
+    }
+    h1 { margin: 0 0 8px; font-size: 27px; letter-spacing: 0.2px; }
+    .meta { color: var(--muted); font-size: 13px; margin: 0 0 26px; }
+    h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 1.4px; color: var(--accent); margin: 28px 0 10px; }
+    p { margin: 0 0 12px; color: #c9d1d9; }
+    ul { margin: 0 0 12px; padding-left: 20px; color: #c9d1d9; }
+    li { margin-bottom: 6px; }
+    code {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 13px;
+      background: #21262d;
+      border: 1px solid #30363d;
+      border-radius: 5px;
+      padding: 1px 5px;
+    }
+    pre {
+      background: #0b0f14;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 14px 16px;
+      overflow-x: auto;
+      margin: 0 0 14px;
+    }
+    pre code { background: none; border: 0; padding: 0; font-size: 13px; line-height: 1.6; }
+    a { color: var(--accent); }
+    footer { margin-top: 32px; color: #6e7681; font-size: 12.5px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Git over SSH on a restricted network</h1>
+    <p class="meta">2026-11-04 · Kevin Lin</p>
+
+    <p>Port 22 is blocked on a lot of networks, including mine. The symptom is familiar:
+      <code>ssh -T git@github.com</code> hangs and finally times out, even though the
+      account and the key are both fine. GitHub publishes an SSH endpoint on port 443 for
+      exactly this case, so the fix is a one-line change in the SSH config rather than
+      anything on the account side.</p>
+
+    <h2>The config</h2>
+    <p>Add this to <code>~/.ssh/config</code>:</p>
+    <pre><code>Host github.com
+  HostName ssh.github.com
+  Port 443
+  User git
+  IdentityFile ~/.ssh/id_ed25519_hpkt3285
+  IdentitiesOnly yes</code></pre>
+
+    <p>The <code>Host</code> line stays <code>github.com</code> so that every existing remote
+      keeps working unchanged; only the host name and port used for the connection are
+      redirected. <code>IdentitiesOnly</code> stops the client from offering every key in the
+      agent, which matters once there is more than one account on the same machine.</p>
+
+    <h2>Checking it</h2>
+    <pre><code>ssh -T git@github.com
+# Hi hPKt3285! You've successfully authenticated,
+# but GitHub does not provide shell access.
+
+git ls-remote git@github.com:hPKt3285/hPKt3285.git</code></pre>
+
+    <p>The greeting is a success message, not an error. The second command proves that
+      cloning and pushing will work over the same connection.</p>
+
+    <h2>Signing commits with the same key</h2>
+    <p>SSH keys can sign commits as well as authenticate them, which avoids keeping a
+      separate GPG key around. The global settings look like this:</p>
+    <pre><code>git config --global gpg.format ssh
+git config --global user.signingkey ~/.ssh/id_ed25519_hpkt3285.pub
+git config --global commit.gpgsign true</code></pre>
+
+    <p>GitHub shows the commit as <em>Verified</em> as soon as the public key is registered
+      as a signing key on the account. For local verification, add the key to an
+      <code>allowed_signers</code> file and point Git at it:</p>
+    <pre><code>echo "350152904+hPKt3285@users.noreply.github.com $(cat ~/.ssh/id_ed25519_hpkt3285.pub)" \
+  >> ~/.ssh/allowed_signers
+git config --global gpg.ssh.allowedSignersFile ~/.ssh/allowed_signers
+git log --show-signature -1</code></pre>
+
+    <h2>Things that tripped me up</h2>
+    <ul>
+      <li>Windows OpenSSH refuses to use a private key that other users can read —
+        the fix is to tighten the file ACL, not to copy the key somewhere else.</li>
+      <li>A key added for authentication is not automatically a signing key;
+        GitHub needs it added a second time in the SSH and GPG keys page.</li>
+      <li><code>user.email</code> should be the <code>noreply</code> address, otherwise
+        the email in the commit does not match the account and the signature is
+        verified but not attributed.</li>
+    </ul>
+
+    <footer><a href="../index.html">← Back to home</a></footer>
+  </main>
+</body>
+</html>
