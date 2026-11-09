@@ -122,10 +122,10 @@ jobs:
     <pre><code>* text=auto
 *.sh text eol=lf</code></pre>
 
-    <h2>What I would add next</h2>
-    <p>Nothing clever. A path filter so the workflow does not run for changes that cannot
-      affect the README, and a second job that repeats the same script on
-      <code>windows-latest</code> to see how the same file behaves on two runners.</p>
+    <h2>What came next</h2>
+    <p>The <code>windows-latest</code> job from that list is now in the workflow: the same
+      script runs on both runners and both jobs pass. The path filter is still open — the
+      workflow keeps running for changes that cannot affect the README.</p>
 
     <footer><a href="../index.html">← Back to home</a></footer>
   </main>
